@@ -9,7 +9,7 @@ conn = sqlite3.connect('diver.db')
 
 # main
 def main():
-	# report()
+	# databasedump()
 	# print get_time()
 	selector()
 
@@ -44,7 +44,8 @@ def get_time():
 
 
 # read from database and print to console
-def report():
+# for troubleshooting purposes
+def databasedump():
 	query = conn.execute(" SELECT * \
 		FROM weather;")
 	for row in query:
@@ -58,6 +59,7 @@ def south_coast():
 		pass
 
 def lyall_bay(time):
+	# Declaring local variables
 	wind_problems = []
 	swell_problems = []
 	wind_forcast_good = []
@@ -66,12 +68,14 @@ def lyall_bay(time):
 	swell_forcast_bad = []
 	swellHeight = -20
 	rainfall = 0
+	# Reading database
 	query = conn.execute("SELECT weather.datetime, weather.windDir, weather.windSpeed, lyall.windDir, lyall.windSpeed, lyall.swellHeight, lyall.swellDir, weather.rainFall\
 		FROM weather\
 		LEFT JOIN lyall on lyall.datetime = weather.datetime\
 		ORDER BY weather.datetime DESC\
 		LIMIT 48;")
 		
+	# Parsing through data	
 	for row in query:
 		# sets swellHeight to whatever the current row says it is
 		if row[5] is None:
@@ -98,7 +102,9 @@ def lyall_bay(time):
 		if int(time) > int(row[0]):
 			rainfall += row[7]
 
-		# when loop hits current time:
+		# when loop hits current time 
+		# this is where current conditions are set
+		# if current time isn't in the dataset this won't run
 		if int(time) == int(row[0]):
 			print 'Current conditions at lyall bay:'
 			print 'at %s' % format_date(str(time))
@@ -126,6 +132,7 @@ def lyall_bay(time):
 				# set the current time's swell to whatever the most recent valid swell was and saves it in a new variable
 				current_swell_height = swellHeight
 			print ''
+		
 		# collecting forcast wind data
 		if int(time) < int(row[0]):
 			if str(row[3]) is None:
@@ -138,39 +145,60 @@ def lyall_bay(time):
 			elif str(row[3]) == 'S' or str(row[3]) == 'SE' or str(row[3]) == 'SW':
 					wind_forcast_bad.append(row)
 
+		# elif row[0] > time:
+			# 	print 'FORECAST'
+			# 	print '%s wind forcast at %s' % (format_direction(str(row[1])), format_date(str(row[0])))
+			# 	print 'Weather might turn on you'
+			# 	print ''
 
-	# analysing data:
-	if current_swell_height > 2.0:
+	# passing data to the analysis functions
+	analyse_swell(current_swell_height, swell_problems)
+	analyse_wind(current_wind_direction, wind_problems, time)
+	analyse_rainfall(rainfall)
+
+
+def analyse_swell(current_swell, swell_problems):
+	# analysing swell data
+	if current_swell > 2.0:
 		print 'Swell above 2m - Too rough right now'
-		exit()
-	elif current_wind_direction == 'S' or current_wind_direction == 'SW' or current_wind_direction == 'SE':
-		print 'Southerly currently blowing, look at Makara'
-		selector()
-	elif rainfall > 10.0:
-		print 'Rainfall from last two days is over 10mm, expect low Visibility'
-		exit()
-	else:
+	
+	if len(swell_problems) == 0:
 		pass
-	# wind
+	else:
+		print 'Poor Conditions for the south coast due to:'
+		for prob in swell_problems:
+			print 'EARLIER'
+			print '%s swell of %sm detected at %s' % (format_direction(str(prob[6])), str(prob[5]), format_date(str(prob[0])))
+			print ''
+
+
+def analyse_wind(current_wind, wind_problems, time):
+
+	if current_wind == 'S' or current_wind == 'SW' or current_wind == 'SE':
+		print 'Southerly currently blowing, look at Makara'
+
+
 	if len(wind_problems) == 0:
 		print "Conditions are currently great for South Coast on %r" % format_date(time)
 		print ''
+
 	elif len(wind_problems) == 1:
 		print 'Only one occurance of unfavorable wind over the last couple of days, things are probably ok'
 		print 'This occurance is as follows:'
-		if row[0] < time:
-			if row[3] is None:
-				print 'EARLIER'
-				print '%s winds detected at %s (NOT LOCAL TO LYALL BAY)' % (format_direction(str(row[1])), format_date(str(row[0])))
-				print 'wind speed of %s km/h' % (str(row[2]))
-				print 'Visibility likely ok'
-				print ''
-			else:
-				print 'EARLIER'
-				print '%s winds detected at %s (LOCAL TO LYALL BAY)' % (format_direction(str(row[3])), format_date(str(row[0])))
-				print 'wind speed of %s km/h' % (str(row[4]))
-				print 'Visibility probably ok'
-				print ''
+		for row in wind_problems:
+			if row[0] < time:
+				if row[3] is None:
+					print 'EARLIER'
+					print '%s winds detected at %s (NOT LOCAL TO LYALL BAY)' % (format_direction(str(row[1])), format_date(str(row[0])))
+					print 'wind speed of %s km/h' % (str(row[2]))
+					print 'Visibility likely ok'
+					print ''
+				else:
+					print 'EARLIER'
+					print '%s winds detected at %s (LOCAL TO LYALL BAY)' % (format_direction(str(row[3])), format_date(str(row[0])))
+					print 'wind speed of %s km/h' % (str(row[4]))
+					print 'Visibility probably ok'
+					print ''
 	else:
 		print "Poor conditions for the south coast due to:"
 		for row in wind_problems:
@@ -192,22 +220,9 @@ def lyall_bay(time):
 		print 'South Coast Visibility likely comprimised'
 		print ''
 
-	# analysing swell data
-	if len(swell_problems) == 0:
-		pass
-	else:
-		print 'Poor Conditions for the south coast due to:'
-		for row in swell_problems:
-			print 'EARLIER'
-			print '%s swell of %sm detected at %s' % (format_direction(str(row[6])), str(row[5]), format_date(str(row[0])))
-			print ''
-
-			# elif row[0] > time:
-			# 	print 'FORECAST'
-			# 	print '%s wind forcast at %s' % (format_direction(str(row[1])), format_date(str(row[0])))
-			# 	print 'Weather might turn on you'
-			# 	print ''
-
+def analyse_rainfall(rainfall):
+	if rainfall > 10.0:
+		print 'Rainfall from last two days is over 10mm, expect low Visibility'
 
 def format_date(datetime):
 	year = re.findall('^[0-9]{4}', datetime)[0]
@@ -257,6 +272,7 @@ else:
 
 # TO DO:
 # select correct data from database - last 3 days?
+# Start working wind and rain forecasts in for future weather warnings
 
 # DB queries:
 
